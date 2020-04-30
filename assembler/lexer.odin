@@ -1,0 +1,282 @@
+package assembler
+
+import "core:fmt"
+import "core:strings"
+import "core:unicode/utf8"
+import "shared:utf8proc"
+
+TokenTypes :: distinct bit_set[TokenType];
+TokenType :: enum {
+    End_Of_File,
+
+    Ident,
+    Number,
+    String,
+    End_Of_Line,
+
+    Percent,
+    Dot,
+    Comma,
+    Colon,
+    LeftBracket,
+    RightBracket,
+
+    /* For potential assemble time arithmetics*/
+    Plus, Minus,
+    Asterisk, Slash, Mod,
+}
+
+Location :: struct {
+    file: string,
+    line: int,
+    character: int,
+}
+
+Token :: struct {
+    kind:        TokenType,
+    lexeme:      string,
+    loc:         Location,
+}
+
+print_location :: proc(loc: Location) {
+    fmt.printf("%s(%d:%d):", loc.file, loc.line, loc.character);
+}
+
+next_rune :: proc(parser: ^Parser) -> rune {
+    parser.current_rune_offset = parser.offset;
+
+    r, length := utf8.decode_rune(parser.data[parser.offset:]);
+    if r == utf8.RUNE_ERROR {
+        //TODO: return a token thingy
+        //return TokenType.End_Of_File;
+    }
+    parser.offset += length;
+    parser.current_rune = r;
+    parser.current_character += 1;
+
+    return r;
+}
+
+is_alpha :: proc(r: rune) -> bool {
+    return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z');
+}
+
+is_alnum :: proc(r: rune) -> bool {
+    return is_alpha(r) || (r >= '0' && r <= '9');
+}
+
+is_letter :: proc(r: rune) -> bool {
+    cat := utf8proc.category(r);
+    return
+        (cat == utf8proc.Category.LU ||
+         cat == utf8proc.Category.LL ||
+         cat == utf8proc.Category.LT ||
+         cat == utf8proc.Category.LM ||
+         cat == utf8proc.Category.LO
+        );
+}
+
+is_ident :: proc(r: rune) -> bool {
+    cat := utf8proc.category(r);
+    return 
+        (cat == utf8proc.Category.LU ||
+         cat == utf8proc.Category.LL ||
+         cat == utf8proc.Category.LT ||
+         cat == utf8proc.Category.LM ||
+         cat == utf8proc.Category.LO
+        )
+        || (cat == utf8proc.Category.ND ||
+            cat == utf8proc.Category.NL ||
+            cat == utf8proc.Category.NO
+            )
+        || r == '_';
+}
+
+unquote_string :: proc(parser: ^Parser, loc: Location, str: string) -> string {
+    // Should probably return a bool telling whether or not we allocated a new string
+
+    found := false;
+    for i := 0; i < len(str); i += 1 {
+        // We could get the correct size here
+        if str[i] == '\\' {
+            found = true;
+            break;
+        }
+    }
+
+    if !found do return str;
+
+    buffer: [dynamic]u8;
+    reserve(&buffer, len(str));
+
+    for i := 0; i < len(str); i += 1 {
+        if str[i] == '\\' {
+            i += 1;
+            switch str[i] {
+            case '\\': append(&buffer, '\\');
+            case 'n': append(&buffer, 0x0A);
+            case 'r': append(&buffer, 0x0D);
+            case 'e': append(&buffer, 0x1b);
+            case 't': append(&buffer, 0x09);
+            case '0': append(&buffer, 0);
+            case '"': append(&buffer, '"');
+            case 'x': panic("TODO: Implement byte escape");
+            case:
+                parser_error(parser, loc, "unknown escape sequence '\\%r'", str[i]);
+            }
+        } else {
+            append(&buffer, str[i]);
+        }
+    }
+
+    return string(buffer[:]);
+}
+
+read_token :: proc(parser: ^Parser) -> Token {
+    loc := Location{parser.filepath, parser.current_line, parser.current_character};
+
+    start := parser.current_rune_offset;
+    r := parser.current_rune;
+    if r == utf8.RUNE_ERROR do return Token{.End_Of_File, "end of file", loc};
+
+    if r == '\n' {
+        next_rune(parser);
+        parser.current_line += 1;
+        parser.current_character = 1;
+        return read_token(parser); //WARNING Recursion
+    }
+
+    if r == ' ' || r == '\t' || r == '\r' {
+        next_rune(parser);
+        return read_token(parser); //WARNING Recursion
+    }
+
+    switch r {
+        case '%': next_rune(parser); return Token{.Percent,     "%", loc};
+        case '.': next_rune(parser); return Token{.Dot,         ".", loc};
+        case ':': next_rune(parser); return Token{.Colon,       ":", loc};
+        case ',': next_rune(parser); return Token{.Comma,        ",", loc};
+        case '[': next_rune(parser); return Token{.LeftBracket,  "[", loc};
+        case ']': next_rune(parser); return Token{.RightBracket, "]", loc};
+
+        case ';': {
+            next_rune(parser);
+
+            for parser.current_rune != '\n' && parser.current_rune != utf8.RUNE_ERROR {
+                next_rune(parser);
+            }
+
+            return read_token(parser);
+        }
+
+        case '"': {
+            r = next_rune(parser);
+            start = parser.current_rune_offset;
+
+            //TODO: Handle escapes
+            for {
+                if r == '"' do break;
+
+                r = next_rune(parser);
+                if r == utf8.RUNE_ERROR do parser_error(parser, loc, "unexpected end of file while parsing string");
+            }
+
+            lexeme := string(parser.data[start:parser.current_rune_offset]);
+            next_rune(parser);
+            return Token{.String, lexeme, loc};
+        }
+
+        case '\'': {
+            r = next_rune(parser);
+            start = parser.current_rune_offset;
+
+            //TODO: Handle escapes
+            for {
+                if r == '\'' do break;
+
+                r = next_rune(parser);
+                if r == utf8.RUNE_ERROR do parser_error(parser, loc, "unexpected end of file while parsing character literal");
+            }
+
+            lexeme := string(parser.data[start:parser.current_rune_offset]);
+            next_rune(parser);
+
+            if utf8.rune_count(transmute([]u8)lexeme[:]) > 1 {
+                parser_error(parser, loc, "invalid character literal, '%s'", lexeme);
+            }
+
+            r, len := utf8.decode_rune_in_string(lexeme);
+            val := f64(r);
+
+            number_lexeme := fmt.aprintf("%d", r);
+            append(&parser.allocated_strings, number_lexeme);
+
+            return Token{.Number, number_lexeme, loc};
+        }
+
+        case '0'..'9': {
+            base := 10;
+
+            //TBD: Parse value here, or add union to Token for special values like base and value.
+            // Or just store the entire string, and dont adjust `start` when we detect a 0x-style prefix?
+
+            // Keep the entire string as the lexeme
+            // Parse the value. value *= base; value += index_of_char_in_NUMBER_CHARS
+            // Store in union value in Token, or if Number is the only special case Token, just stuff a `value: int` in there
+
+            if parser.current_rune == '0' {
+                next_rune(parser); // eat 0
+
+                switch parser.current_rune {
+                case 'x': base = 16; next_rune(parser); start := parser.current_rune_offset;
+                case 'b': base = 2;  next_rune(parser); start := parser.current_rune_offset;
+                case:
+                    lexeme := string(parser.data[start:parser.current_rune_offset]);
+                    return Token{TokenType.Number, lexeme, loc};
+                }
+            }
+
+            for {
+                r = next_rune(parser);
+
+                for ch in NUMBER_CHARS[:base] {
+                    if ch == r {
+                        continue;
+                    }
+                }
+
+                break;
+            }
+
+            lexeme := string(parser.data[start:parser.current_rune_offset]);
+            return Token{TokenType.Number, lexeme, loc};
+        }
+
+        case: {
+            if is_letter(r) || r == '_' {
+                for {
+                    r = next_rune(parser);
+
+                    if !is_ident(r) do break;
+                }
+
+                lexeme := string(parser.data[start:parser.current_rune_offset]);
+                token_type := TokenType.Ident;
+                switch lexeme {
+                    // Check for any keywords here if they are needed ex.
+                    // > case "continue" : token_type = TokenType.Continue;
+                }
+
+                return Token{token_type, lexeme, loc};
+            }
+        }
+    }
+
+    //TODO: if we fall here from a failed multi char we report the character after the failed char!
+    fmt.printf("%s(%d:%d): Invalid character '%r'/%d!\n", loc.file, loc.line, loc.character, r, r);
+    panic("");
+    return Token{TokenType.End_Of_File, "end of file", loc};
+}
+
+@(private="file")
+NUMBER_CHARS := "0123456789abcdef";
