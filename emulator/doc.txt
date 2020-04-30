@@ -1,0 +1,162 @@
+
+16-bit addresss
+16-bit word
+
+R0-R7 - 16-bit - General purpose registers
+SP    - 16-bit - Stack pointer
+PC    - 16-bit - Program counter
+
+R7 serves as a status flag
+
+7      0
+xxxxxHZC
+C - Carry flag
+Z - Zero flag
+H - Halt flag(how on earth are you gonna read this?)
+
+
+ld
+add
+sub
+shl - can only shift on registers
+shr - can only shift on registers
+and - can only perform operations on registers
+or  - can only perform operations on registers
+xor - can only perform operations on registers
+not - can only perform operations on registers
+jmp - can take registers and intermediates
+jsr - can take registers and intermediates
+ret - takes no operands
+jz  - can take registers and intermediates
+jnz - can take registers and intermediates
+jc  - can take registers and intermediates
+jnc - can take registers and intermediates
+int
+reti - takes no operands
+
+1
+5       7      0
+oooooxxxrrrrtttt
+oooooxxxiiiiiiii
+
+o - opcode
+x - extra
+r - arg 1
+t - arg 2
+i - intermediate
+
+Addressing mode: xxx
+OLD Bit 2: set if 'i' and 'r' is used  , not set if 'r' and 't' is
+OLD Bit 1: set if r is a register value, not set if r is a memory offset register
+OLD Bit 0: set if t is a register value, not set if t is a memory offset register
+
+Bit 2: if set intermediates are used                 , if not set r and t is used
+Bit 1: if set r is a memory reference                , if not set r is used as a register
+Bit 0: if set intermediate or t is a memory reference, if not set intermediate or t is a value
+
+If an argument is unsused it MUST be zero
+If the operand only takes one argument it is always controlled by bit 1
+
+(x), value of word in memory starting at x
++-----+------------+----------------+
+| xxx |     r      |    t/i         |
++-----+------------+----------------+
+| 000 |  register  |  register      |
+| 001 |  register  | (register)     |
+| 010 | (register) |  register      |
+| 011 | (register) | (register)     |
+| 100 |  register  |  intermediate  |
+| 101 |  register  | (intermediate) |
+| 110 | (register) |  intermediate  |
+| 111 | (register) | (indermediate) |
++-----+------------+----------------+
+
+
+Registers: rrrr
+0000 - r0
+...
+0111 - r7
+1000 - sp
+1001 - pc
+
+Opcodes: ooooo
+NOP  - 00000 - 0x00
+MOV  - 00001 - 0x01
+ADD  - 00010 - 0x02
+SUB  - 00011 - 0x03
+SHL  - 00100 - 0x04
+SHR  - 00101 - 0x05
+AND  - 00110 - 0x06
+OR   - 00111 - 0x07
+XOR  - 01000 - 0x08
+NOT  - 01001 - 0x09
+JMP  - 01010 - 0x0A
+JSR  - 01011 - 0x0B
+RET  - 01100 - 0x0C
+JZ   - 01101 - 0x0D
+JNZ  - 01110 - 0x0E
+JC   - 01111 - 0x0F
+JNC  - 10000 - 0x10
+INT  - 10001 - 0x11
+RETI - 10010 - 0x12
+HLT  - 10011 - 0x13
+INC  - 10100 - 0x14
+DEC  - 10101 - 0x15
+
+MOV
+
+mov  r0, 0x4B  - 00001 100 0000 ...., iiiiiiiiiiiiiiii
+mov  r1, (r4)  - 00001 001 0001 0100
+mov  r3,  sp   - 00001 000 0011 1000
+mov (r5), r3   - 00001 010 0101 0011
+
+
+inc  r1   - 10000 000 0001 ....
+inc (r2)  - 10000 010 0010 ....
+inc (100) - 10000 110 .... ...., iiiiiiiiiiiiiiii
+
+jmp r1    - 01010 000 0001 ....
+jmp (r1)  - 01010 010 0001 ....
+jmp 123   - 01010 100 .... ...., iiiiiiiiiiiiiiii
+jmp (123) - 01010 110 .... ...., iiiiiiiiiiiiiiii
+
+shl r1, 12       - 00100 100 .... ...., iiiiiiiiiiiiiiii
+shl r3, r1       - 00100 000 0011 0001
+shl r1, (0xFF02) - 00100 110 .... ...., iiiiiiiiiiiiiiii
+shl r1, (r3)     - 00100 001 0001 0011
+
+---------------------------------------
+| OP  |  rt or i  |    r    |    t    |
+|-------------------------------------|
+| MOV |   Used    |  Used   |  Used   |
+| ADD |   Used    |  Used   |  Used   |
+| SUB |   Used    |  Used   |  Used   |
+| INC |   Used    |  Used   | Ignored |
+| DEC |   USed    |  Used   | Ignored |
+| JMP |   Used    |  Used   | Ignored |
+
+
+=======================================================================
+END OF DOC
+
++-----------------------------------------------------+
+| Addr  | Op and operands    | Effect                 |
++-------+--------------------+------------------------+ 
+| 0b000 | and r0, r0         |  r0  =  r0  &  r0      |
+| 0b001 | and r0, (r1)       |  r0  =  r0  & (r1)     |
+| 0b010 | and (r1), r2       | (r1) = (r1) &  r2      |
+| 0b011 | and (r2), (r3)     | (r2) = (r2) & (r3)     |
+| 0b100 | and r0, 0x00FF     |  r0  =  r0  &  0x00FF  |
+| 0b101 | and r0, (0x1212)   |  r0  =  r0  & (0x1212) |
+| 0b110 | and (r1), 0x00FF   | (r1) = (r1) &  0x00FF  |
+| 0b111 | and (r1), (0x1213) | (r1) = (r1) & (0x1213) |
++-----------------------------------------------------+
+
+
+read laste byte:
+	mov r0, (0xFFFE) ; What would happen if I tried to read the last byte?
+	and r0, 0xFF
+
+Reading from last byte:
+	mov r0, (0xFFFF)
+	r0 ; is now 0xFF00
