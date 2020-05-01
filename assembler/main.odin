@@ -66,13 +66,17 @@ Instruction :: struct {
 
 Directive :: struct {
     name: string,
-    args: [dynamic]string,
+    args: [dynamic]string, // We need something fancy here, maybe something like Directive_Operand, which supports strings etc.
 }
 
 main :: proc() {
     //instrs: [dynamic]Instruction;
     //labels: [dynamic]struct{name: string, offset: int};
     //append(&instrs, {.MOV, 2, {false, .R0}, {false, Immediate{0xFF}}});
+
+    // Pretty-much-it-as-far-as-syntax-goes
+    // [[`.`]label `:`] (`%`directive-name | instruction) [operand (`,` operand)*]
+
 
     // If we get to emitting a label before its resolved
     // emit a zero, and add it to a list
