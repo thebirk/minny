@@ -71,8 +71,9 @@ Opcode :: enum u16 {
 
 Instruction :: struct {
     /* some label stuff here */
-    op:       string,
-    operands: []^Operand,
+    directive: bool,
+    op:        string,
+    operands:  []^Operand,
 }
 
 Directive :: struct {
@@ -97,7 +98,12 @@ main :: proc() {
 
     parser: Parser;
     parser.filepath = "test.asm";
-    test := `mov [r0], 'A' ; single line comment`;
+    test := 
+`
+%offset 0x1000
+mov [r0], 'A'-4 ; single line comment
+add r0, 1
+`;
     parser.data = transmute([]u8) test;
     parser.current_line = 1;
     parser.current_character = 0;

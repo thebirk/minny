@@ -136,33 +136,72 @@ parse_operand_expr :: proc(using parser: ^Parser) -> ^Operand {
 }
 
 parse_line :: proc(using parser: ^Parser) -> (Instruction, bool) {
-    #partial
-    switch current_token.kind {
-    case .Percent:    fmt.println("Percent");
-    case .Dot:        fmt.println("Dot");
-    case .Identifier:
-        ident := current_token;
-        next_token(parser);
-        fmt.printf("%#v\n", ident);
-
-        operands: [dynamic]^Operand;
-        op := parse_operand_expr(parser);
-        append(&operands, op);
-
-        for current_token.kind == .Comma {
+    for {
+        #partial
+        switch current_token.kind {
+        case .End_Of_Line:
+            next_token(parser);
+            continue;
+        case .Dot:
+            fmt.println("Dot");
+            unreachable();
+        case .Percent:
             next_token(parser);
 
+            if current_token.kind != .Identifier {
+                parser_error(parser, "unexpected '%v', expected directive", current_token.lexeme);
+            }
+            ident := current_token;
+            next_token(parser);
+            fmt.printf("%#v\n", ident);
+
+            operands: [dynamic]^Operand;
             op := parse_operand_expr(parser);
             append(&operands, op);
+
+            for current_token.kind == .Comma {
+                next_token(parser);
+
+                op := parse_operand_expr(parser);
+                append(&operands, op);
+            }
+
+            if current_token.kind != .End_Of_Line  && current_token.kind != .End_Of_File {
+                parser_error(parser, "unexpected '%v'", current_token.lexeme);
+            }
+            next_token(parser);
+
+            return Instruction{true, ident.lexeme, operands[:]}, true;
+        case .Identifier:
+            ident := current_token;
+            next_token(parser);
+            fmt.printf("%#v\n", ident);
+
+            operands: [dynamic]^Operand;
+            op := parse_operand_expr(parser);
+            append(&operands, op);
+
+            for current_token.kind == .Comma {
+                next_token(parser);
+
+                op := parse_operand_expr(parser);
+                append(&operands, op);
+            }
+
+            if current_token.kind != .End_Of_Line  && current_token.kind != .End_Of_File {
+                parser_error(parser, "unexpected '%v'", current_token.lexeme);
+            }
+            next_token(parser);
+
+            return Instruction{false, ident.lexeme, operands[:]}, true;
+        case .End_Of_File: return {}, false;
+        case:
+            parser_error(parser, "unexpected token '%v'", current_token.lexeme);
         }
 
-        return Instruction{ident.lexeme, operands[:]}, true;
-    case .End_Of_File: return {}, false;
-    case:
-        parser_error(parser, "unexpected token '%v'", current_token.lexeme);
+        fmt.println(current_token);
+        unreachable();
     }
-
-    unreachable();
     return {}, false;
 }
 
