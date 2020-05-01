@@ -1,5 +1,7 @@
 %offset 0
 ; %include "other.inc"
+%define IVT_BASE  0x1000
+%define STACK_TOP 0xFF00
 
 mov r0, 0
 mov [r0], 0xDEAD ; Just in case we ever read a null pointer, it will be "garbage"
@@ -22,10 +24,10 @@ int_0_entry:
 	reti ; handles restoration of flags(r7), to-be-implemented!!
 
 setup_ivt:
-	mov r0, 0x0100
+	mov r0, IVT_BASE
 	mov [r0], int_0_entry
 	
-	mov r0, 0x0102
+	mov r0, IVT_BASE+2
 	mov r1, 254
 .loop:
 	add r0, 2
@@ -39,7 +41,7 @@ string:     %ascii "Hello, world!"
 string_len: %db 13
 
 start:
-	mov sp, 0xFF00 ; All the stack space!
+	mov sp, STACK_TOP ; All the stack space!
 
 	mov r0, 0x0F00
 	mov r1, string
