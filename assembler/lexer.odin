@@ -9,7 +9,7 @@ TokenTypes :: distinct bit_set[TokenType];
 TokenType :: enum {
     End_Of_File,
 
-    Ident,
+    Identifier,
     Number,
     String,
     End_Of_Line,
@@ -23,7 +23,7 @@ TokenType :: enum {
 
     /* For potential assemble time arithmetics*/
     Plus, Minus,
-    Asterisk, Slash, Mod,
+    Asterisk, Slash,
 }
 
 Location :: struct {
@@ -46,10 +46,7 @@ next_rune :: proc(parser: ^Parser) -> rune {
     parser.current_rune_offset = parser.offset;
 
     r, length := utf8.decode_rune(parser.data[parser.offset:]);
-    if r == utf8.RUNE_ERROR {
-        //TODO: return a token thingy
-        //return TokenType.End_Of_File;
-    }
+    // Differenatiate betwee utf8.RUNE_ERROR and EOF
     parser.offset += length;
     parser.current_rune = r;
     parser.current_character += 1;
@@ -92,7 +89,7 @@ is_ident :: proc(r: rune) -> bool {
         || r == '_';
 }
 
-unquote_string :: proc(parser: ^Parser, loc: Location, str: string) -> string {
+unescape_string :: proc(parser: ^Parser, loc: Location, str: string) -> string {
     // Should probably return a bool telling whether or not we allocated a new string
 
     found := false;
@@ -159,6 +156,11 @@ read_token :: proc(parser: ^Parser) -> Token {
         case '[': next_rune(parser); return Token{.LeftBracket,  "[", loc};
         case ']': next_rune(parser); return Token{.RightBracket, "]", loc};
 
+        case '+': next_rune(parser); return Token{.Plus,     "+", loc};
+        case '-': next_rune(parser); return Token{.Minus,    "-", loc};
+        case '*': next_rune(parser); return Token{.Asterisk, "*", loc};
+        case '/': next_rune(parser); return Token{.Slash,    "&", loc};
+
         case ';': {
             next_rune(parser);
 
@@ -217,38 +219,40 @@ read_token :: proc(parser: ^Parser) -> Token {
         case '0'..'9': {
             base := 10;
 
-            //TBD: Parse value here, or add union to Token for special values like base and value.
-            // Or just store the entire string, and dont adjust `start` when we detect a 0x-style prefix?
-
-            // Keep the entire string as the lexeme
-            // Parse the value. value *= base; value += index_of_char_in_NUMBER_CHARS
             // Store in union value in Token, or if Number is the only special case Token, just stuff a `value: int` in there
 
             if parser.current_rune == '0' {
-                next_rune(parser); // eat 0
+                r = next_rune(parser); // eat 0
 
                 switch parser.current_rune {
-                case 'x': base = 16; next_rune(parser); start := parser.current_rune_offset;
-                case 'b': base = 2;  next_rune(parser); start := parser.current_rune_offset;
-                case:
-                    lexeme := string(parser.data[start:parser.current_rune_offset]);
-                    return Token{TokenType.Number, lexeme, loc};
+                case 'x': base = 16; r = next_rune(parser); start := parser.current_rune_offset;
+                case 'b': base = 2;  r = next_rune(parser); start := parser.current_rune_offset;
                 }
             }
 
-            for {
-                r = next_rune(parser);
+            value := 0;
 
-                for ch in NUMBER_CHARS[:base] {
+            number_scan:
+            for {
+                if r >= 'A' && r <= 'F' {
+                    r += 'a'-'A';
+                }
+
+                for ch, i in NUMBER_CHARS[:base] {
                     if ch == r {
-                        continue;
+                        value *= base;
+                        value += i;
+                        r = next_rune(parser);
+                        continue number_scan;
                     }
                 }
 
                 break;
             }
 
+
             lexeme := string(parser.data[start:parser.current_rune_offset]);
+            fmt.println(lexeme, ":", value);
             return Token{TokenType.Number, lexeme, loc};
         }
 
@@ -261,7 +265,7 @@ read_token :: proc(parser: ^Parser) -> Token {
                 }
 
                 lexeme := string(parser.data[start:parser.current_rune_offset]);
-                token_type := TokenType.Ident;
+                token_type := TokenType.Identifier;
                 switch lexeme {
                     // Check for any keywords here if they are needed ex.
                     // > case "continue" : token_type = TokenType.Continue;
