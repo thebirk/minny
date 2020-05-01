@@ -8,10 +8,17 @@ Operand :: struct {
         Register,
         Immediate,
         Label,
+        Identifier,
+        String,
+        Number,
+        Binary,
     }
 }
 
-Immediate :: distinct u16;
+Immediate  :: distinct u16;
+Number     :: distinct int;
+Identifier :: distinct string;
+String     :: distinct string;
 Register :: enum u16 {
     R0 = 0b0000,
     R1 = 0b0001,
@@ -28,6 +35,10 @@ Register :: enum u16 {
 Label :: struct {
     parent: string,
     local:  string,
+}
+Binary :: struct {
+    op: TokenType,
+    lhs, rhs: ^Operand, // where do we store these? Could always allocate them all.
 }
 
 Opcode :: enum u16 {
@@ -59,9 +70,9 @@ Opcode :: enum u16 {
 }
 
 Instruction :: struct {
-    op:       Opcode,
-    operands: int,
-    a, b:     Operand,
+    /* some label stuff here */
+    op:       string,
+    operands: []^Operand,
 }
 
 Directive :: struct {
@@ -84,80 +95,96 @@ main :: proc() {
     // If there are any remaining, throw errors
 
 
-    // IDEA: Allow encoding tiny immediates in the first word.
-    //  Us the top-most T bit to check if its short-form, if so the immediate is
-    //  the first three bits of T. If  the top bit is set, the immedate uses the next word
-    // ex. the instruction below would in short-form become:
-    // shl r3, 1
-    //  oooooxxxrrrrtttt
-    //  0010010000110001
-    //
-    // instead of the usual
-    //
-    //  oooooxxxrrrrtttt iiiiiiiiiiiiiiii
-    //  0010010000110000 0000000000000001
-    //
-    // If we wanted the long form, the new result would be:
-    //
-    //              notice the top T bit set here
-    //              v
-    //  oooooxxxrrrrtttt iiiiiiiiiiiiiiii
-    //  0010010000111000 0000000000000001
-    fmt.println("shl r3, 1");
-    instr := Instruction{.SHL, 1, {false, .R3}, {false, Immediate(1)}};
-    print_instr(instr);
-    fmt.println();
+    parser: Parser;
+    parser.filepath = "test.asm";
+    test := `mov [r0], 'A' ; single line comment`;
+    parser.data = transmute([]u8) test;
+    parser.current_line = 1;
+    parser.current_character = 0;
+    next_rune(&parser);
+    next_token(&parser);
 
-    fmt.println("shl r3, 8");
-    instr = Instruction{.SHL, 1, {false, .R3}, {false, Immediate(8)}};
-    print_instr(instr);
-    fmt.println();
-
-    fmt.println("mov r5, 0");
-    instr = Instruction{.MOV, 2, {false, .R5}, {true, Immediate(0)}};
-    print_instr(instr);
-    fmt.println();
-
-    fmt.println("mov r5, 0x74");
-    instr = Instruction{.MOV, 2, {false, .R5}, {true, Immediate(0x74)}};
-    print_instr(instr);
-    fmt.println();
-
-    print_instr :: proc(instr: Instruction) {
-        // bit 0 - b.is_memory
-        // bit 1 - a.is_memory
-        // bit 2 - b.value.(Immediate)
-        _, b_is_imm := instr.b.value.(Immediate);
-        addr := u16(
-            (instr.b.is_memory ? 1<<0 : 0) |
-            (instr.a.is_memory ? 1<<1 : 0) |
-            (b_is_imm          ? 1<<2 : 0)
-        );
-
-        R := instr.a.value.(Register);
-        T := u16(0);
-        if !b_is_imm {
-            T = u16(instr.b.value.(Register));
-        } else {
-            imm := u16(instr.b.value.(Immediate));
-            if imm > 0b111 {
-                T = 0b1000;
-            } else {
-                T = imm;
-            }
-        }
-        fmt.printf("oooooxxxrrrrtttt\n");
-        fmt.printf("%05b%03b%04b%04b", u16(instr.op), addr, u16(R), T);
-
-        if b_is_imm {
-            imm := u16(instr.b.value.(Immediate));
-            if imm > 0b111 {
-                fmt.printf(" %016b", imm);
-            }
-        }
-
-        fmt.println();
+    instrs := parse(&parser);
+    for instr in instrs {
+        fmt.printf("%#v\n", instr);
     }
+    
 }
 
+// test_gen :: proc() {
+//     // IDEA: Allow encoding tiny immediates in the first word.
+//     //  Us the top-most T bit to check if its short-form, if so the immediate is
+//     //  the first three bits of T. If  the top bit is set, the immedate uses the next word
+//     // ex. the instruction below would in short-form become:
+//     // shl r3, 1
+//     //  oooooxxxrrrrtttt
+//     //  0010010000110001
+//     //
+//     // instead of the usual
+//     //
+//     //  oooooxxxrrrrtttt iiiiiiiiiiiiiiii
+//     //  0010010000110000 0000000000000001
+//     //
+//     // If we wanted the long form, the new result would be:
+//     //
+//     //              notice the top T bit set here
+//     //              v
+//     //  oooooxxxrrrrtttt iiiiiiiiiiiiiiii
+//     //  0010010000111000 0000000000000001
+//     fmt.println("shl r3, 1");
+//     instr := Instruction{.SHL, 1, {false, .R3}, {false, Immediate(1)}};
+//     print_instr(instr);
+//     fmt.println();
+
+//     fmt.println("shl r3, 8");
+//     instr = Instruction{.SHL, 1, {false, .R3}, {false, Immediate(8)}};
+//     print_instr(instr);
+//     fmt.println();
+
+//     fmt.println("mov r5, 0");
+//     instr = Instruction{.MOV, 2, {false, .R5}, {true, Immediate(0)}};
+//     print_instr(instr);
+//     fmt.println();
+
+//     fmt.println("mov r5, 0x74");
+//     instr = Instruction{.MOV, 2, {false, .R5}, {true, Immediate(0x74)}};
+//     print_instr(instr);
+//     fmt.println();
+
+//     print_instr :: proc(instr: Instruction) {
+//         // bit 0 - b.is_memory
+//         // bit 1 - a.is_memory
+//         // bit 2 - b.value.(Immediate)
+//         _, b_is_imm := instr.b.value.(Immediate);
+//         addr := u16(
+//             (instr.b.is_memory ? 1<<0 : 0) |
+//             (instr.a.is_memory ? 1<<1 : 0) |
+//             (b_is_imm          ? 1<<2 : 0)
+//         );
+
+//         R := instr.a.value.(Register);
+//         T := u16(0);
+//         if !b_is_imm {
+//             T = u16(instr.b.value.(Register));
+//         } else {
+//             imm := u16(instr.b.value.(Immediate));
+//             if imm > 0b111 {
+//                 T = 0b1000;
+//             } else {
+//                 T = imm;
+//             }
+//         }
+//         fmt.printf("oooooxxxrrrrtttt\n");
+//         fmt.printf("%05b%03b%04b%04b", u16(instr.op), addr, u16(R), T);
+
+//         if b_is_imm {
+//             imm := u16(instr.b.value.(Immediate));
+//             if imm > 0b111 {
+//                 fmt.printf(" %016b", imm);
+//             }
+//         }
+
+//         fmt.println();
+//     }
+// }
 

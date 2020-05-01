@@ -37,3 +37,149 @@ parser_error :: proc{
     parser_error_at,
     parser_error_current,
 };
+
+parse_operand :: proc(using parser: ^Parser) -> ^Operand {
+    t := current_token;
+    #partial
+    switch t.kind {
+    case .Identifier:
+        next_token(parser);
+        op := new(Operand);
+        op.is_memory = false;
+        op.value = Identifier(t.lexeme);
+        return op;
+    case .Number:
+        next_token(parser);
+        op := new(Operand);
+        op.is_memory = false;
+        //op.value = ;
+        op.value = Number(420);
+        return op;
+    case .String:
+        next_token(parser);
+        op := new(Operand);
+        op.is_memory = false;
+        op.value = String(t.lexeme);
+        return op;
+    case:
+        parser_error(parser, "unexpected token '%v'", t.lexeme);    
+    }
+
+    unreachable();
+    return nil;
+}
+
+parse_operand_expr_mul :: proc(using parser: ^Parser) -> ^Operand {
+    lhs := parse_operand(parser);
+
+    for (current_token.kind in TokenTypes{.Plus, .Minus}) {
+        op := current_token;
+        next_token(parser);
+
+        rhs := parse_operand(parser);
+        
+        new_lhs := new(Operand);
+        new_lhs.is_memory = false;
+        new_lhs.value = Binary{
+            op.kind,
+            lhs,
+            rhs
+        };
+
+        lhs = new_lhs;
+    }
+
+    return lhs;
+}
+
+parse_operand_expr_add :: proc(using parser: ^Parser) -> ^Operand {
+    lhs := parse_operand_expr_mul(parser);
+
+    for (current_token.kind in TokenTypes{.Plus, .Minus}) {
+        op := current_token;
+        next_token(parser);
+
+        rhs := parse_operand_expr_mul(parser);
+        
+        new_lhs := new(Operand);
+        new_lhs.is_memory = false;
+        new_lhs.value = Binary{
+            op.kind,
+            lhs,
+            rhs
+        };
+
+        lhs = new_lhs;
+    }
+
+    return lhs;
+}
+
+parse_operand_expr :: proc(using parser: ^Parser) -> ^Operand {
+    is_memory := false;
+    if current_token.kind == .LeftBracket {
+        is_memory = true;
+        next_token(parser);
+    }
+    op := parse_operand_expr_add(parser);
+
+    if is_memory {
+        op.is_memory = true;
+
+        if current_token.kind != .RightBracket {
+            parser_error(parser, "unexpected '%v', expected ']'", current_token.kind);
+        }
+        next_token(parser);
+    }
+
+    return op;
+}
+
+parse_line :: proc(using parser: ^Parser) -> (Instruction, bool) {
+    #partial
+    switch current_token.kind {
+    case .Percent:    fmt.println("Percent");
+    case .Dot:        fmt.println("Dot");
+    case .Identifier:
+        ident := current_token;
+        next_token(parser);
+        fmt.printf("%#v\n", ident);
+
+        operands: [dynamic]^Operand;
+        op := parse_operand_expr(parser);
+        append(&operands, op);
+
+        for current_token.kind == .Comma {
+            next_token(parser);
+
+            op := parse_operand_expr(parser);
+            append(&operands, op);
+        }
+
+        return Instruction{ident.lexeme, operands[:]}, true;
+    case .End_Of_File: return {}, false;
+    case:
+        parser_error(parser, "unexpected token '%v'", current_token.lexeme);
+    }
+
+    unreachable();
+    return {}, false;
+}
+
+parse :: proc(using parser: ^Parser) -> []Instruction {
+    instrs: [dynamic]Instruction;
+
+    for {
+        instr, ok := parse_line(parser);
+        if !ok do break;
+        append(&instrs, instr);
+    }
+
+    return instrs[:];
+}
+
+next_token :: proc(using parser: ^Parser) -> Token {
+    t := read_token(parser);
+    current_token = t;
+    return t;
+}
