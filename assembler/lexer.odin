@@ -140,7 +140,7 @@ read_token :: proc(parser: ^Parser) -> Token {
         next_rune(parser);
         parser.current_line += 1;
         parser.current_character = 1;
-        return read_token(parser); //WARNING Recursion
+        return Token{.End_Of_Line, "end of line", loc};
     }
 
     if r == ' ' || r == '\t' || r == '\r' {
@@ -149,9 +149,9 @@ read_token :: proc(parser: ^Parser) -> Token {
     }
 
     switch r {
-        case '%': next_rune(parser); return Token{.Percent,     "%", loc};
-        case '.': next_rune(parser); return Token{.Dot,         ".", loc};
-        case ':': next_rune(parser); return Token{.Colon,       ":", loc};
+        case '%': next_rune(parser); return Token{.Percent,      "%", loc};
+        case '.': next_rune(parser); return Token{.Dot,          ".", loc};
+        case ':': next_rune(parser); return Token{.Colon,        ":", loc};
         case ',': next_rune(parser); return Token{.Comma,        ",", loc};
         case '[': next_rune(parser); return Token{.LeftBracket,  "[", loc};
         case ']': next_rune(parser); return Token{.RightBracket, "]", loc};
