@@ -1,4 +1,4 @@
-%offset 0
+%offset 0 ; The offset the code is expected to be loaded from, all subsequent labels will be calculated according to this
 ; %include "other.inc"
 %define IVT_BASE  0x1000
 %define STACK_TOP 0xFF00
@@ -8,6 +8,14 @@ mov [r0], 0xDEAD ; Just in case we ever read a null pointer, it will be "garbage
 jsr setup_ivt
 jmp start
 
+; Macros would be cool
+; Not textual, .local labels only exists within the macro
+; %macro macro_add a b 
+; 	mov r0, a          
+; 	mov r1, b          
+; 	add r0, r1         
+; %endmacro            
+
 ivt_stub:
 	reti
 
@@ -16,7 +24,8 @@ int_0_entry:
 	push r0
 
 	; Do some work
-	mov r0, 12
+	mov r2, 0z10 ; Dozenal support
+	mov r0, 0o10 ; octal support
 	shl r0, 4
 
 	; Restore registered we used
@@ -30,7 +39,7 @@ setup_ivt:
 	mov r0, IVT_BASE+2
 	mov r1, 254
 .loop:
-	add r0, 2
+	add r0, 0b10
 	mov [r0], ivt_stub
 	dec r1
 	jnz .loop

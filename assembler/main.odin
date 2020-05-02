@@ -91,6 +91,7 @@ main :: proc() {
     // Pretty-much-it-as-far-as-syntax-goes
     // [[`.`]label `:`] (`%`directive-name | instruction) [operand (`,` operand)*]
 
+    //TODO: We would probably want bitwise binary operators as well
 
     // If we get to emitting a label before its resolved
     // emit a zero, and add it to a list
