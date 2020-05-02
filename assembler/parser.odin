@@ -141,7 +141,7 @@ parse_operand_expr :: proc(using parser: ^Parser) -> ^Operand {
         op.is_memory = true;
 
         if current_token.kind != .RightBracket {
-            parser_error(parser, "unexpected '%v', expected ']'", current_token.kind);
+            parser_error(parser, "unexpected '%v', expected ']'", current_token.lexeme);
         }
         next_token(parser);
     }
@@ -193,7 +193,7 @@ parse_line :: proc(using parser: ^Parser) -> (Instruction, bool) {
             return parse_instruction(parser, ident, label_name.lexeme, true, directive), true;
         } else {
             if current_token.kind != .Identifier && current_token.kind != .Percent {
-                parser_error(parser, "unexpected '%v', expected identifier or '%%'", current_token.lexeme);
+                parser_error(parser, "unexpected '%v'", current_token.lexeme);
             }
             ident_label_or_percent := current_token;
             next_token(parser);
@@ -202,7 +202,7 @@ parse_line :: proc(using parser: ^Parser) -> (Instruction, bool) {
                 next_token(parser);
 
                 if ident_label_or_percent.kind != .Identifier {
-                    parser_error_at(parser, ident_label_or_percent.loc, "unexpected '%v', expected identifier before ':'", ident_label_or_percent.lexeme);
+                    parser_error_at(parser, ident_label_or_percent.loc, "unexpected '%v', expected label name before ':'", ident_label_or_percent.lexeme);
                 }
 
                 if current_token.kind == .End_Of_Line || current_token.kind == .End_Of_File {
@@ -217,7 +217,7 @@ parse_line :: proc(using parser: ^Parser) -> (Instruction, bool) {
                 }
 
                 if current_token.kind != .Identifier {
-                    parser_error(parser, "unexpected '%v', expected instruction", current_token.lexeme);
+                    parser_error(parser, "unexpected '%v', expected instruction or directive", current_token.lexeme);
                 }
                 ident := current_token;
                 next_token(parser);
