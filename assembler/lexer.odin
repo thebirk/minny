@@ -229,6 +229,8 @@ read_token :: proc(parser: ^Parser) -> Token {
 
                 switch parser.current_rune {
                 case 'x': base = 16; r = next_rune(parser); start := parser.current_rune_offset;
+                case 'z': base = 12; r = next_rune(parser); start := parser.current_rune_offset;
+                case 'o': base = 8;  r = next_rune(parser); start := parser.current_rune_offset;
                 case 'b': base = 2;  r = next_rune(parser); start := parser.current_rune_offset;
                 }
             }
