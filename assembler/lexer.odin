@@ -3,7 +3,7 @@ package assembler
 import "core:fmt"
 import "core:strings"
 import "core:unicode/utf8"
-import "shared:utf8proc"
+import "utf8proc"
 
 TokenTypes :: distinct bit_set[TokenType];
 TokenType :: enum {
