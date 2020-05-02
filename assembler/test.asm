@@ -63,7 +63,7 @@ memcpy:
 	dec r2
 	jz .end
 	jmp .loop
-.end
+.end:
 	ret
 
 calling_test:
