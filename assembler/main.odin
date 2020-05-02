@@ -69,6 +69,13 @@ Opcode :: enum u16 {
     CMP  = 0b11000,
 }
 
+// Instruction wishlist:
+// PUSH/POP   - word/registers
+// PUSHB/POPB - byte
+// PUSHA/POPA - push all registers, excluding SP and PC
+// JE/JNE     - these should compile to JZ/JNZ
+// Two register option for jump instructions jz r1, r2. Here we would jump to r1 if the zero flag was set, r2 otherwise
+
 Instruction :: struct {
     /* some label stuff here */
     label:       string,
@@ -128,7 +135,7 @@ main :: proc() {
         if op.is_memory do fmt.printf("]");
     }
 
-    instrs := parse_file("test.asm");
+    instrs := parse_file("test.masm");
     for instr in instrs {
         //fmt.printf("%#v\n", instr);
 
