@@ -139,8 +139,10 @@ main :: proc() {
             if instr.directive do fmt.printf("%%");
             if instr.op != "" do fmt.printf("%s ", instr.op);
 
-            for op in instr.operands {
+            for op, i in instr.operands {
                 print_operand(op);
+
+                if !instr.directive && i < len(instr.operands)-1 do fmt.printf(",");
                 fmt.printf(" ");
             }
 
