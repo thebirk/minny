@@ -33,9 +33,10 @@ Location :: struct {
 }
 
 Token :: struct {
-    kind:        TokenType,
-    lexeme:      string,
-    loc:         Location,
+    kind:   TokenType,
+    lexeme: string,
+    loc:    Location,
+    value:  union{int},
 }
 
 print_location :: proc(loc: Location) {
@@ -64,6 +65,7 @@ is_alnum :: proc(r: rune) -> bool {
 
 is_letter :: proc(r: rune) -> bool {
     cat := utf8proc.category(r);
+    // TODO: Can be optimized into range comparison
     return
         (cat == utf8proc.Category.LU ||
          cat == utf8proc.Category.LL ||
@@ -75,6 +77,7 @@ is_letter :: proc(r: rune) -> bool {
 
 is_ident :: proc(r: rune) -> bool {
     cat := utf8proc.category(r);
+    // TODO: Can be optimized into range comparisons
     return 
         (cat == utf8proc.Category.LU ||
          cat == utf8proc.Category.LL ||
@@ -134,13 +137,13 @@ read_token :: proc(parser: ^Parser) -> Token {
 
     start := parser.current_rune_offset;
     r := parser.current_rune;
-    if r == utf8.RUNE_ERROR do return Token{.End_Of_File, "end of file", loc};
+    if r == utf8.RUNE_ERROR do return Token{.End_Of_File, "end of file", loc, nil};
 
     if r == '\n' {
         next_rune(parser);
         parser.current_line += 1;
         parser.current_character = 1;
-        return Token{.End_Of_Line, "end of line", loc};
+        return Token{.End_Of_Line, "end of line", loc, nil};
     }
 
     if r == ' ' || r == '\t' || r == '\r' {
@@ -149,17 +152,17 @@ read_token :: proc(parser: ^Parser) -> Token {
     }
 
     switch r {
-        case '%': next_rune(parser); return Token{.Percent,      "%", loc};
-        case '.': next_rune(parser); return Token{.Dot,          ".", loc};
-        case ':': next_rune(parser); return Token{.Colon,        ":", loc};
-        case ',': next_rune(parser); return Token{.Comma,        ",", loc};
-        case '[': next_rune(parser); return Token{.LeftBracket,  "[", loc};
-        case ']': next_rune(parser); return Token{.RightBracket, "]", loc};
+        case '%': next_rune(parser); return Token{.Percent,      "%", loc, nil};
+        case '.': next_rune(parser); return Token{.Dot,          ".", loc, nil};
+        case ':': next_rune(parser); return Token{.Colon,        ":", loc, nil};
+        case ',': next_rune(parser); return Token{.Comma,        ",", loc, nil};
+        case '[': next_rune(parser); return Token{.LeftBracket,  "[", loc, nil};
+        case ']': next_rune(parser); return Token{.RightBracket, "]", loc, nil};
 
-        case '+': next_rune(parser); return Token{.Plus,     "+", loc};
-        case '-': next_rune(parser); return Token{.Minus,    "-", loc};
-        case '*': next_rune(parser); return Token{.Asterisk, "*", loc};
-        case '/': next_rune(parser); return Token{.Slash,    "&", loc};
+        case '+': next_rune(parser); return Token{.Plus,     "+", loc, nil};
+        case '-': next_rune(parser); return Token{.Minus,    "-", loc, nil};
+        case '*': next_rune(parser); return Token{.Asterisk, "*", loc, nil};
+        case '/': next_rune(parser); return Token{.Slash,    "&", loc, nil};
 
         case ';': {
             next_rune(parser);
@@ -185,7 +188,7 @@ read_token :: proc(parser: ^Parser) -> Token {
 
             lexeme := string(parser.data[start:parser.current_rune_offset]);
             next_rune(parser);
-            return Token{.String, lexeme, loc};
+            return Token{.String, lexeme, loc, nil};
         }
 
         case '\'': {
@@ -208,12 +211,12 @@ read_token :: proc(parser: ^Parser) -> Token {
             }
 
             r, len := utf8.decode_rune_in_string(lexeme);
-            val := f64(r);
+            val := int(r);
 
             number_lexeme := fmt.aprintf("%d", r);
             append(&parser.allocated_strings, number_lexeme);
 
-            return Token{.Number, number_lexeme, loc};
+            return Token{.Number, number_lexeme, loc, val};
         }
 
         case '0'..'9': {
@@ -253,7 +256,7 @@ read_token :: proc(parser: ^Parser) -> Token {
 
             lexeme := string(parser.data[start:parser.current_rune_offset]);
             fmt.println(lexeme, ":", value);
-            return Token{TokenType.Number, lexeme, loc};
+            return Token{TokenType.Number, lexeme, loc, value};
         }
 
         case: {
@@ -271,7 +274,7 @@ read_token :: proc(parser: ^Parser) -> Token {
                     // > case "continue" : token_type = TokenType.Continue;
                 }
 
-                return Token{token_type, lexeme, loc};
+                return Token{token_type, lexeme, loc, nil};
             }
         }
     }
@@ -279,7 +282,7 @@ read_token :: proc(parser: ^Parser) -> Token {
     //TODO: if we fall here from a failed multi char we report the character after the failed char!
     fmt.printf("%s(%d:%d): Invalid character '%r'/%d!\n", loc.file, loc.line, loc.character, r, r);
     panic("");
-    return Token{TokenType.End_Of_File, "end of file", loc};
+    return Token{TokenType.End_Of_File, "end of file", loc, nil};
 }
 
 @(private="file")
