@@ -53,13 +53,27 @@ parse_operand :: proc(using parser: ^Parser) -> ^Operand {
         op := new(Operand);
         op.is_memory = false;
         //op.value = ;
-        op.value = Number(420);
+        op.value = Number(t.value.(int));
         return op;
     case .String:
         next_token(parser);
         op := new(Operand);
         op.is_memory = false;
         op.value = String(t.lexeme);
+        return op;
+    case .Dot:
+        next_token(parser);
+        if current_token.kind != .Identifier {
+            parser_error(parser, "unexpected '%v', expected identifier after '.'", current_token.lexeme);
+        }
+        ident := current_token;
+        next_token(parser);
+
+        op := new(Operand);
+        op.is_memory = false;
+        //TODO: mark as local when we get a label like value
+        op.value = Identifier(ident.lexeme);
+
         return op;
     case:
         parser_error(parser, "unexpected token '%v'", t.lexeme);    
@@ -106,7 +120,7 @@ parse_operand_expr_add :: proc(using parser: ^Parser) -> ^Operand {
         new_lhs.value = Binary{
             op.kind,
             lhs,
-            rhs
+            rhs 
         };
 
         lhs = new_lhs;
@@ -137,30 +151,113 @@ parse_operand_expr :: proc(using parser: ^Parser) -> ^Operand {
 
 parse_line :: proc(using parser: ^Parser) -> (Instruction, bool) {
     for {
-        #partial
-        switch current_token.kind {
-        case .End_Of_Line:
+        if current_token.kind == .End_Of_File {
+            return {}, false;
+        }
+        if current_token.kind == .End_Of_Line {
             next_token(parser);
             continue;
-        case .Dot:
-            fmt.println("Dot");
-            unreachable();
-        case .Percent:
+        }
+
+        if current_token.kind == .Dot {
             next_token(parser);
 
             if current_token.kind != .Identifier {
-                parser_error(parser, "unexpected '%v', expected directive", current_token.lexeme);
+                parser_error(parser, "unexpected '%v', expected identifier", current_token.lexeme);
+            }
+            label_name := current_token;
+            next_token(parser);
+
+            if current_token.kind != .Colon {
+                parser_error(parser, "unexpected '%v', expected ':' after label", current_token.lexeme);
+            }
+            next_token(parser);
+
+            if current_token.kind == .End_Of_Line || current_token.kind == .End_Of_File {
+                next_token(parser);
+                return Instruction{label_name.lexeme, true, false, "", nil}, true;
+            }
+
+            directive := false;
+            if current_token.kind == .Percent {
+                directive = true;
+                next_token(parser);
+            }
+
+            if current_token.kind != .Identifier {
+                parser_error(parser, "unexpected '%v', expected instruction or directive");
             }
             ident := current_token;
             next_token(parser);
+
+            return parse_instruction(parser, ident, label_name.lexeme, true, directive), true;
+        } else {
+            if current_token.kind != .Identifier && current_token.kind != .Percent {
+                parser_error(parser, "unexpected '%v', expected identifier or '%%'", current_token.lexeme);
+            }
+            ident_label_or_percent := current_token;
+            next_token(parser);
+
+            if current_token.kind == .Colon {
+                next_token(parser);
+
+                if ident_label_or_percent.kind != .Identifier {
+                    parser_error_at(parser, ident_label_or_percent.loc, "unexpected '%v', expected identifier before ':'", ident_label_or_percent.lexeme);
+                }
+
+                if current_token.kind == .End_Of_Line || current_token.kind == .End_Of_File {
+                    next_token(parser);
+                    return Instruction{ident_label_or_percent.lexeme, false, false, "", nil}, true;
+                }
+
+                directive := false;
+                if current_token.kind == .Percent {
+                    directive = true;
+                    next_token(parser);
+                }
+
+                if current_token.kind != .Identifier {
+                    parser_error(parser, "unexpected '%v', expected instruction", current_token.lexeme);
+                }
+                ident := current_token;
+                next_token(parser);
+
+                return parse_instruction(parser, ident, ident_label_or_percent.lexeme, false, directive), true;
+            } else {
+                if ident_label_or_percent.kind == .Percent {
+                    if current_token.kind != .Identifier {
+                        parser_error(parser, "unexpected '%v', expected directive name", current_token.lexeme);
+                    }
+                    ident := current_token;
+                    next_token(parser);
+
+                    return parse_instruction(parser, ident, "", false, true), true;
+                } else {
+                    return parse_instruction(parser, ident_label_or_percent, "", false, false), true;
+                }
+            }
+        }
+
+        parse_instruction :: proc(using parser: ^Parser, ident: Token, label: string, local_label: bool, directive: bool) -> Instruction {
             fmt.printf("%#v\n", ident);
 
             operands: [dynamic]^Operand;
+
+            if current_token.kind == .End_Of_Line || current_token.kind == .End_Of_File {
+                return Instruction{
+                    label = label,
+                    local_label = local_label,
+                    directive = directive,
+                    op = ident.lexeme,
+                    operands = operands[:]
+                };
+            }
+
             op := parse_operand_expr(parser);
             append(&operands, op);
 
-            for current_token.kind == .Comma {
-                next_token(parser);
+            for directive ? current_token.kind != .End_Of_Line : current_token.kind == .Comma {
+                if !directive do next_token(parser);
 
                 op := parse_operand_expr(parser);
                 append(&operands, op);
@@ -171,32 +268,13 @@ parse_line :: proc(using parser: ^Parser) -> (Instruction, bool) {
             }
             next_token(parser);
 
-            return Instruction{true, ident.lexeme, operands[:]}, true;
-        case .Identifier:
-            ident := current_token;
-            next_token(parser);
-            fmt.printf("%#v\n", ident);
-
-            operands: [dynamic]^Operand;
-            op := parse_operand_expr(parser);
-            append(&operands, op);
-
-            for current_token.kind == .Comma {
-                next_token(parser);
-
-                op := parse_operand_expr(parser);
-                append(&operands, op);
-            }
-
-            if current_token.kind != .End_Of_Line  && current_token.kind != .End_Of_File {
-                parser_error(parser, "unexpected '%v'", current_token.lexeme);
-            }
-            next_token(parser);
-
-            return Instruction{false, ident.lexeme, operands[:]}, true;
-        case .End_Of_File: return {}, false;
-        case:
-            parser_error(parser, "unexpected token '%v'", current_token.lexeme);
+            return Instruction{
+                label = label,
+                local_label = local_label,
+                directive = directive,
+                op = ident.lexeme,
+                operands = operands[:]
+            };
         }
 
         fmt.println(current_token);
@@ -215,6 +293,24 @@ parse :: proc(using parser: ^Parser) -> []Instruction {
     }
 
     return instrs[:];
+}
+
+parse_file :: proc(path: string) -> []Instruction {
+    parser: Parser;
+    parser.filepath = path;
+
+    data, ok := os.read_entire_file(path);
+    if !ok {
+        panic("failed to read file");
+    }
+
+    parser.data = data[:];
+    parser.current_line = 1;
+    parser.current_character = 0;
+    next_rune(&parser);
+    next_token(&parser);
+
+    return parse(&parser);
 }
 
 next_token :: proc(using parser: ^Parser) -> Token {
