@@ -71,9 +71,11 @@ Opcode :: enum u16 {
 
 Instruction :: struct {
     /* some label stuff here */
-    directive: bool,
-    op:        string,
-    operands:  []^Operand,
+    label:       string,
+    local_label: bool,
+    directive:   bool,
+    op:          string,
+    operands:    []^Operand,
 }
 
 Directive :: struct {
@@ -95,24 +97,55 @@ main :: proc() {
     // then at the end resolve all possible labels
     // If there are any remaining, throw errors
 
+    print_operand :: proc(op: ^Operand) {
+        if op.is_memory do fmt.printf("[");
+        switch kind in op.value {
+        case Register:
+            fmt.printf("%s", kind);
+        case Immediate:
+            fmt.printf("%s", kind);
+        case Label:
+            panic("we shouldnt be here yet");
+            fmt.printf("%s", kind);
+        case Identifier:
+            fmt.printf("%s", kind);
+        case String:
+            fmt.printf("%s", kind);
+        case Number:
+            fmt.printf("%v", kind);
+        case Binary:
+            print_operand(kind.lhs);
+            #partial switch kind.op {
+            case .Plus:     fmt.printf("+");
+            case .Minus:    fmt.printf("-");
+            case .Asterisk: fmt.printf("*");
+            case .Slash:    fmt.printf("/");
+            case: unreachable("invalid op");
+            }
+            print_operand(kind.rhs);
+        }
+        if op.is_memory do fmt.printf("]");
+    }
 
-    parser: Parser;
-    parser.filepath = "test.asm";
-    test := 
-`
-%offset 0x1000
-mov [r0], 'A'-4 ; single line comment
-add r0, 1
-`;
-    parser.data = transmute([]u8) test;
-    parser.current_line = 1;
-    parser.current_character = 0;
-    next_rune(&parser);
-    next_token(&parser);
-
-    instrs := parse(&parser);
+    instrs := parse_file("test.asm");
     for instr in instrs {
-        fmt.printf("%#v\n", instr);
+        //fmt.printf("%#v\n", instr);
+
+        when true {
+            if instr.local_label do fmt.printf(".");
+            if instr.label != "" do fmt.printf("%s: ", instr.label);
+
+            if instr.label == "" && !instr.directive do fmt.printf("    ");
+            if instr.directive do fmt.printf("%%");
+            if instr.op != "" do fmt.printf("%s ", instr.op);
+
+            for op in instr.operands {
+                print_operand(op);
+                fmt.printf(" ");
+            }
+
+            fmt.printf("\n");
+        }
     }
     
 }
