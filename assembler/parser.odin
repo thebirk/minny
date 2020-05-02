@@ -239,8 +239,6 @@ parse_line :: proc(using parser: ^Parser) -> (Instruction, bool) {
         }
 
         parse_instruction :: proc(using parser: ^Parser, ident: Token, label: string, local_label: bool, directive: bool) -> Instruction {
-            fmt.printf("%#v\n", ident);
-
             operands: [dynamic]^Operand;
 
             if current_token.kind == .End_Of_Line || current_token.kind == .End_Of_File {
@@ -257,7 +255,9 @@ parse_line :: proc(using parser: ^Parser) -> (Instruction, bool) {
             append(&operands, op);
 
             for directive ? current_token.kind != .End_Of_Line : current_token.kind == .Comma {
-                if !directive do next_token(parser);
+                if current_token.kind == .Comma {
+                    next_token(parser);
+                }
 
                 op := parse_operand_expr(parser);
                 append(&operands, op);
