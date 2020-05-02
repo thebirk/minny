@@ -10,10 +10,15 @@ jmp start
 
 ; Macros would be cool
 ; Not textual, .local labels only exists within the macro
-; %macro macro_add a b
-; 	mov r0, a
-; 	mov r1, b
-; 	add r0, r1
+; %macro test end result
+; .start:          
+;     mov r3, end
+;     cmp r3, 0
+;     je .end
+;     dec r3
+;     je .start
+; .end:
+;     mov r2, result
 ; %endmacro
 
 ivt_stub:
@@ -23,25 +28,22 @@ int_0_entry:
 	; Save the registers we use
 	push r0
 
-	; Do some work
-	mov r2, 0z10 ; Dozenal support
-	mov r0, 0o10 ; octal support
-	shl r0, 4
-
 	; Restore registered we used
 	pop r0
 	reti ; handles restoration of flags(r7), to-be-implemented!!
 
 setup_ivt:
+    ; Write int 0
 	mov r0, IVT_BASE
 	mov [r0], int_0_entry
-	
+	             
+    ; Stub out the rest
 	mov r0, IVT_BASE+2
-	mov r1, 254
+	mov r1, 128-1
 .loop:
-	add r0, 0b10
 	mov [r0], ivt_stub
-	dec r1
+    sub r1, 2
+    add r2, 2	
 	jnz .loop
 
 	ret
