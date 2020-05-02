@@ -10,11 +10,11 @@ jmp start
 
 ; Macros would be cool
 ; Not textual, .local labels only exists within the macro
-; %macro macro_add a b 
-; 	mov r0, a          
-; 	mov r1, b          
-; 	add r0, r1         
-; %endmacro            
+; %macro macro_add a b
+; 	mov r0, a
+; 	mov r1, b
+; 	add r0, r1
+; %endmacro
 
 ivt_stub:
 	reti
