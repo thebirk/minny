@@ -1,5 +1,6 @@
 package utf8proc
 
+import "core:c"
 import "core:mem"
 
 VERSION_MAJOR :: 2;
@@ -181,6 +182,7 @@ Property :: struct {
 	titlecase_seqindex: u16,
 	comb_index: u16,
 	
+	_bitfield: c.uint,
 /*	unsigned bidi_mirrored:1;
 	unsigned comp_exclusion:1;
 	unsigned ignorable:1;
