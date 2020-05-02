@@ -255,7 +255,6 @@ read_token :: proc(parser: ^Parser) -> Token {
 
 
             lexeme := string(parser.data[start:parser.current_rune_offset]);
-            fmt.println(lexeme, ":", value);
             return Token{TokenType.Number, lexeme, loc, value};
         }
 
