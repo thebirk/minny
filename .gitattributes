@@ -1,1 +1,2 @@
 assembler/utf8proc/* linguist-vendored
+*.masm linguist-language=asm
