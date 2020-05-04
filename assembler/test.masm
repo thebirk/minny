@@ -1,99 +1,32 @@
-%offset 0 ; The offset the code is expected to be loaded from, all subsequent labels will be calculated according to this
-; %include "other.inc"
-%define IVT_BASE  0x1000
-%define STACK_TOP 0xFF00
+%define custom_reg_name r0
 
-mov r0, 0
-mov [r0], 0xDEAD ; Just in case we ever read a null pointer, it will be "garbage"
-jsr setup_ivt
-jmp start
-
-; Macros would be cool
-; Not textual, .local labels only exists within the macro
-; %macro test end result
-; .start:          
-;     mov r3, end
-;     cmp r3, 0
-;     je .end
-;     dec r3
-;     je .start
-; .end:
-;     mov r2, result
-; %endmacro
-
-ivt_stub:
-	reti
-
-int_0_entry:
-	; Save the registers we use
-	push r0
-
-	; Restore registered we used
-	pop r0
-	reti ; handles restoration of flags(r7), to-be-implemented!!
-
-setup_ivt:
-    ; Write int 0
-	mov r0, IVT_BASE
-	mov [r0], int_0_entry
-	             
-    ; Stub out the rest
-	mov r0, IVT_BASE+2
-	mov r1, 128-1
-.loop:
-	mov [r0], ivt_stub
-    sub r1, 2
-    add r2, 2	
-	jnz .loop
-
-	ret
-
-string:     %ascii "Hello, world!"
-string_len: %db 13
-
-start:
-	mov sp, STACK_TOP ; All the stack space!
-
-	mov r0, 0x0F00
-	mov r1, string
-	mov r2, [string_len]
-	jsr memcpy
-
-.end:
-	hlt
-	jmp end
+main:
+    mov r0, 123
+    mov r1, 300+21
+    ; to allow this we have to always treat identifiers/labels as > 3bits
+    ; otherwise it would be impossible to generate the size,
+    ; if the identifer/label could potentially fit in 3bits, aka short-form
+    mov r4, test
+    add custom_reg_name, r1
+%undefine custom_reg_name
+    mov r6, r1
+.hlt:
+    jmp .hlt
 
 
-; memcpy - r0 dst, r1 src, r2 bytes
-memcpy:
-.loop:
-	mov [r0], [r1]
-	inc r0
-	inc r1
+test:
+;    jmp main.hlt ; this should work
 
-	dec r2
-	jz .end
-	jmp .loop
-.end:
-	ret
+a: mov r5, 'A'
+b: mov r6, 'B'
 
-calling_test:
-	push 4
-	jsr stack_calling_test
-	pop                     ; Pops a word by default
+set_player_pos:
+;    mov r0, player.x
+    mov [r0], r1
+;    mov r0, player.y
+    mov [r0], r2
+    ret
 
-	; r0 should be 8
-	ret
-
-; stack calling test; 1 arg, r0 holds the return value
-stack_calling_test:
-	push sp ; save stack pointer
-
-	push r1 ; don't clobber r1
-
-	pop r0 ; pop arg
-	mul r0, 2
-	pop r1
-
-	pop sp ; restore stack
-	ret
+player:
+.x: %db 0
+.y: %db 0
