@@ -186,7 +186,7 @@ validate_valid_ops_table :: proc() {
             // somewhere else in the table
 
             builder := strings.make_builder();
-            strings.write_string(&builder, fmt.aprintf(
+            strings.write_string(&builder, fmt.tprintf(
                 "index %d of valid_ops table with op '%s', is out of order with %d other declaration(s) of the same name at indices:\n",
                 i, op.name, len(names[op.name])
             ));
@@ -196,7 +196,7 @@ validate_valid_ops_table :: proc() {
                 //strings.write_string(&builder, fmt.aprintf("- valid_ops[%d]: %#v\n", l, valid_ops[l]));
                 strings.write_string(
                     &builder,
-                    fmt.aprintf("    - %d\n", l)
+                    fmt.tprintf("    - %d\n", l)
                 );
             }
 
