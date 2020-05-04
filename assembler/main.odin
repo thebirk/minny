@@ -3,11 +3,11 @@ package assembler
 import "core:fmt"
 
 Operand :: struct {
+    loc:       Location,
     is_memory: bool,
     value: union {
         Register,
-        Immediate,
-        Label,
+        LabelOperand,
         Identifier,
         String,
         Number,
@@ -15,7 +15,6 @@ Operand :: struct {
     }
 }
 
-Immediate  :: distinct u16;
 Number     :: distinct int;
 Identifier :: distinct string;
 String     :: distinct string;
@@ -31,10 +30,10 @@ Register :: enum u16 {
 
     SP = 0b1000,
     PC = 0b1001,
-};
-Label :: struct {
-    parent: string,
-    local:  string,
+}
+LabelOperand :: struct {
+    name:  string,
+    local: string,
 }
 Binary :: struct {
     op: TokenType,
@@ -71,13 +70,14 @@ Opcode :: enum u16 {
 
 // Instruction wishlist:
 // PUSH/POP   - word/registers
-// PUSHB/POPB - byte
+// PUSHB/POPB - pushb byte/popb reg/mem
 // PUSHA/POPA - push all registers, excluding SP and PC
 // JE/JNE     - these should compile to JZ/JNZ
 // Two register option for jump instructions jz r1, r2. Here we would jump to r1 if the zero flag was set, r2 otherwise
+// MOVB       - move src as 8bit to dst memory
+// DB/DW      - emit bytes/words
 
 Instruction :: struct {
-    /* some label stuff here */
     label:       string,
     local_label: bool,
     directive:   bool,
@@ -90,7 +90,152 @@ Directive :: struct {
     args: [dynamic]string, // We need something fancy here, maybe something like Directive_Operand, which supports strings etc.
 }
 
+LocalLabel :: struct {
+    name:   string,
+    offset: int,
+}
+
+Label :: struct {
+    offset: int,
+    name:   string,
+    locals: [dynamic]LocalLabel,
+}
+
+Value :: struct {
+    loc: Location,
+    kind: union {
+        int,
+        string,
+    },
+}
+
+Scope :: struct {
+    parent: ^Scope, // For eventual macros
+    symbols: map[string]Value,
+}
+
+eval_operand :: proc(scope: ^Scope, operand: ^Operand, ignore_errors: bool) -> ^Operand {
+    switch op in operand.value {
+    case Register:
+        return operand;
+    case LabelOperand:
+
+    case Identifier:
+        //fmt.printf("\neval_operand(Identifier): %v\n", op);
+
+        switch op {
+        case "r0", "R0":             o := new(Operand); o.loc = operand.loc; o.is_memory = operand.is_memory; o.value = .R0; return o;
+        case "r1", "R1":             o := new(Operand); o.loc = operand.loc; o.is_memory = operand.is_memory; o.value = .R1; return o;
+        case "r2", "R2":             o := new(Operand); o.loc = operand.loc; o.is_memory = operand.is_memory; o.value = .R2; return o;
+        case "r3", "R3":             o := new(Operand); o.loc = operand.loc; o.is_memory = operand.is_memory; o.value = .R3; return o;
+        case "r4", "R4":             o := new(Operand); o.loc = operand.loc; o.is_memory = operand.is_memory; o.value = .R4; return o;
+        case "r5", "R5":             o := new(Operand); o.loc = operand.loc; o.is_memory = operand.is_memory; o.value = .R5; return o;
+        case "r6", "R6":             o := new(Operand); o.loc = operand.loc; o.is_memory = operand.is_memory; o.value = .R6; return o;
+        case "r7", "R7":             o := new(Operand); o.loc = operand.loc; o.is_memory = operand.is_memory; o.value = .R7; return o;
+        case "sp", "sP", "Sp", "SP": o := new(Operand); o.loc = operand.loc; o.is_memory = operand.is_memory; o.value = .SP; return o;
+        case "pc", "pC", "Pc", "PC": o := new(Operand); o.loc = operand.loc; o.is_memory = operand.is_memory; o.value = .PC; return o;
+        }
+
+        //TODO: lookup in scope
+
+        return operand;
+    case String:
+
+    case Number:
+
+    case Binary:
+        lhs := eval_operand(scope, op.lhs, ignore_errors);
+        rhs := eval_operand(scope, op.rhs, ignore_errors);
+
+        lhs_int, lhs_valid := lhs.value.(Number);
+        rhs_int, rhs_valid := rhs.value.(Number);
+
+        if !lhs_valid {
+            panic("TODO");
+        }
+        if !rhs_valid {
+            panic("TODO");
+        }
+
+        res := new(Operand);
+        res.loc = operand.loc;
+        res.is_memory = operand.is_memory;
+
+        #partial
+        switch op.op {
+        case .Plus:     res.value = Number(lhs_int + rhs_int);
+        case .Minus:    res.value = Number(lhs_int - rhs_int);
+        case .Asterisk: res.value = Number(lhs_int * rhs_int);
+        case .Slash:    res.value = Number(lhs_int / rhs_int);
+        case:
+            panic("Invalid op");
+        }
+
+        return res;
+    }
+
+    //unreachable();
+    return operand;
+}
+
+validate_instruction :: proc(instr: Instruction) -> (bool, string) {
+    assert(instr.op != "");
+    ops := get_valid_ops_from_name(instr.op);
+    if len(ops) == 0 {
+        fmt.printf("####: unknown op %s\n", instr.op);
+    }
+
+    fmt.printf("%s: %#v\n", instr.op, ops);
+
+    return false, "";
+}
+
+calculate_instruction_size :: proc(instr: Instruction) -> int {
+    assert(instr.op != "");
+
+
+
+    return 0;
+}
+
+size_pass :: proc(instrs: []Instruction) {
+    labels: [dynamic]Label;
+
+    offset := 0;
+    for instr in instrs {
+        if instr.label != "" {
+            if instr.local_label {
+                append(&labels[len(labels)-1].locals, LocalLabel{instr.label, offset});
+            } else {
+                label: Label;
+                label.name = instr.label;
+                label.offset = offset;
+                append(&labels, label);
+            }
+        }
+
+        if instr.op != "" {
+            if instr.directive {
+
+            } else {
+                offset += 2;
+                validate_instruction(instr);
+            }
+        }
+    }
+
+    for l in labels {
+        fmt.printf("%s: %d\n", l.name, l.offset);
+        for local in l.locals {
+            fmt.printf("%s.%s: %d\n", l.name, local.name, local.offset);
+        }
+    }
+    fmt.println("offset:", offset);
+}
+
 main :: proc() {
+    validate_valid_ops_table();
+    
     //instrs: [dynamic]Instruction;
     //labels: [dynamic]struct{name: string, offset: int};
     //append(&instrs, {.MOV, 2, {false, .R0}, {false, Immediate{0xFF}}});
@@ -105,16 +250,31 @@ main :: proc() {
     // then at the end resolve all possible labels
     // If there are any remaining, throw errors
 
-    print_operand :: proc(op: ^Operand) {
+    instrs := parse_file("test.masm");
+    print_instructions(instrs[:]);
+
+
+    for instr in instrs {
+        if instr.label != "" {
+
+        }
+    }
+    size_pass(instrs);
+    
+    
+}
+
+print_operand :: proc(op: ^Operand) {
         if op.is_memory do fmt.printf("[");
         switch kind in op.value {
         case Register:
             fmt.printf("%s", kind);
-        case Immediate:
-            fmt.printf("%s", kind);
-        case Label:
-            panic("we shouldnt be here yet");
-            fmt.printf("%s", kind);
+        case LabelOperand:
+            assert(kind.name != "" || kind.local != "");
+            if kind.name != "" do fmt.printf("%s", kind.name);
+            if kind.local != "" {
+                fmt.printf(".%s", kind);
+            }
         case Identifier:
             fmt.printf("%s", kind);
         case String:
@@ -135,30 +295,30 @@ main :: proc() {
         if op.is_memory do fmt.printf("]");
     }
 
-    instrs := parse_file("test.masm");
-    for instr in instrs {
-        //fmt.printf("%#v\n", instr);
+    print_instructions :: proc(instrs: []Instruction) {
+        for instr in instrs {
+            //fmt.printf("%#v\n", instr);
 
-        when true {
-            if instr.local_label do fmt.printf(".");
-            if instr.label != "" do fmt.printf("%s: ", instr.label);
+            when true {
+                if instr.local_label do fmt.printf(".");
+                if instr.label != "" do fmt.printf("%s: ", instr.label);
 
-            if instr.label == "" && !instr.directive do fmt.printf("    ");
-            if instr.directive do fmt.printf("%%");
-            if instr.op != "" do fmt.printf("%s ", instr.op);
+                if instr.label == "" && !instr.directive do fmt.printf("    ");
+                if instr.directive do fmt.printf("%%");
+                if instr.op != "" do fmt.printf("%s ", instr.op);
 
-            for op, i in instr.operands {
-                print_operand(op);
+                for op, i in instr.operands {
+                    //print_operand(op);
+                    print_operand(eval_operand(nil, op, false));
 
-                if !instr.directive && i < len(instr.operands)-1 do fmt.printf(",");
-                fmt.printf(" ");
+                    if !instr.directive && i < len(instr.operands)-1 do fmt.printf(",");
+                    fmt.printf(" ");
+                }
+
+                fmt.printf("\n");
             }
-
-            fmt.printf("\n");
         }
     }
-    
-}
 
 // test_gen :: proc() {
 //     // IDEA: Allow encoding tiny immediates in the first word.
