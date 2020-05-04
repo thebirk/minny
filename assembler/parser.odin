@@ -45,12 +45,14 @@ parse_operand :: proc(using parser: ^Parser) -> ^Operand {
     case .Identifier:
         next_token(parser);
         op := new(Operand);
+        op.loc = t.loc;
         op.is_memory = false;
         op.value = Identifier(t.lexeme);
         return op;
     case .Number:
         next_token(parser);
         op := new(Operand);
+        op.loc = t.loc;
         op.is_memory = false;
         //op.value = ;
         op.value = Number(t.value.(int));
@@ -58,6 +60,7 @@ parse_operand :: proc(using parser: ^Parser) -> ^Operand {
     case .String:
         next_token(parser);
         op := new(Operand);
+        op.loc = t.loc;
         op.is_memory = false;
         op.value = String(t.lexeme);
         return op;
@@ -70,6 +73,7 @@ parse_operand :: proc(using parser: ^Parser) -> ^Operand {
         next_token(parser);
 
         op := new(Operand);
+        op.loc = t.loc;
         op.is_memory = false;
         //TODO: mark as local when we get a label like value
         op.value = Identifier(ident.lexeme);
@@ -93,6 +97,7 @@ parse_operand_expr_mul :: proc(using parser: ^Parser) -> ^Operand {
         rhs := parse_operand(parser);
         
         new_lhs := new(Operand);
+        new_lhs.loc = op.loc;
         new_lhs.is_memory = false;
         new_lhs.value = Binary{
             op.kind,
@@ -116,6 +121,7 @@ parse_operand_expr_add :: proc(using parser: ^Parser) -> ^Operand {
         rhs := parse_operand_expr_mul(parser);
         
         new_lhs := new(Operand);
+        new_lhs.loc = op.loc;
         new_lhs.is_memory = false;
         new_lhs.value = Binary{
             op.kind,
